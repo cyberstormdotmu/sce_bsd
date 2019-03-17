@@ -14,7 +14,7 @@ Index: netpfil/ipfw/ip_dn_io.c
 ===================================================================
 --- netpfil/ipfw/ip_dn_io.c	(revision 344445)
 +++ netpfil/ipfw/ip_dn_io.c	(working copy)
-@@ -430,6 +430,62 @@
+@@ -430,6 +430,61 @@
  static
  #endif
  int
@@ -57,7 +57,6 @@ Index: netpfil/ipfw/ip_dn_io.c
 +                if ((flowlabel & (IPTOS_ECN_MASK << 20)) ==
 +                    (IPTOS_ECN_ECT1 << 20))
 +                        return (1);     /* already marked */
-+                /*
 +                /*
 +                 * ecn-capable but not marked, mark CE
 +                 */
