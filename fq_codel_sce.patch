@@ -1,19 +1,46 @@
-Index: netpfil/ipfw/ip_dn_private.h
+Index: sys/netinet/in.h
 ===================================================================
---- netpfil/ipfw/ip_dn_private.h	(revision 344445)
-+++ netpfil/ipfw/ip_dn_private.h	(working copy)
-@@ -438,6 +438,7 @@
+--- sys/netinet/in.h	(revision 344445)
++++ sys/netinet/in.h	(working copy)
+@@ -374,7 +374,7 @@
  
- #ifdef NEW_AQM
- int ecn_mark(struct mbuf* m);
-+int sce_mark(struct mbuf* m);
+ #define IN_LINKLOCAL(i)		(((in_addr_t)(i) & 0xffff0000) == 0xa9fe0000)
+ #define IN_LOOPBACK(i)		(((in_addr_t)(i) & 0xff000000) == 0x7f000000)
+-#define IN_ZERONET(i)		(((in_addr_t)(i) & 0xff000000) == 0)
++#define IN_ZERONET(i)		(((in_addr_t)(i)) == 0)
  
- /* moved from ip_dn_io.c to here to be available for AQMs modules*/
- static inline void
-Index: netpfil/ipfw/ip_dn_io.c
+ #define	IN_PRIVATE(i)	((((in_addr_t)(i) & 0xff000000) == 0x0a000000) || \
+ 			 (((in_addr_t)(i) & 0xfff00000) == 0xac100000) || \
+Index: sys/netinet/ip_icmp.c
 ===================================================================
---- netpfil/ipfw/ip_dn_io.c	(revision 344445)
-+++ netpfil/ipfw/ip_dn_io.c	(working copy)
+--- sys/netinet/ip_icmp.c	(revision 344445)
++++ sys/netinet/ip_icmp.c	(working copy)
+@@ -733,7 +733,6 @@
+ 	int optlen = (ip->ip_hl << 2) - sizeof(struct ip);
+ 
+ 	if (IN_MULTICAST(ntohl(ip->ip_src.s_addr)) ||
+-	    IN_EXPERIMENTAL(ntohl(ip->ip_src.s_addr)) ||
+ 	    IN_ZERONET(ntohl(ip->ip_src.s_addr)) ) {
+ 		m_freem(m);	/* Bad return address */
+ 		ICMPSTAT_INC(icps_badaddr);
+Index: sys/netpfil/ipfw/dn_sched_fq_codel_helper.h
+===================================================================
+--- sys/netpfil/ipfw/dn_sched_fq_codel_helper.h	(revision 344445)
++++ sys/netpfil/ipfw/dn_sched_fq_codel_helper.h	(working copy)
+@@ -127,7 +127,8 @@
+ 		while (now >= cst->drop_next_time && cst->dropping) {
+ 
+ 			/* mark the packet */
+-			if (cprms->flags & CODEL_ECN_ENABLED && ecn_mark(m)) {
++			if (cprms->flags & CODEL_ECN_ENABLED && sce_mark(m)) {
++				printf("XXX\n");
+ 				cst->count++;
+ 				/* schedule the next mark. */
+ 				cst->drop_next_time = control_law(cst, cprms, cst->drop_next_time);
+Index: sys/netpfil/ipfw/ip_dn_io.c
+===================================================================
+--- sys/netpfil/ipfw/ip_dn_io.c	(revision 344445)
++++ sys/netpfil/ipfw/ip_dn_io.c	(working copy)
 @@ -430,6 +430,61 @@
  static
  #endif
@@ -27,7 +54,6 @@ Index: netpfil/ipfw/ip_dn_io.c
 +        case IPVERSION:
 +        {
 +                uint16_t old;
-+
 +                if ((ip->ip_tos & IPTOS_ECN_MASK) == IPTOS_ECN_NOTECT)
 +                        return (0);     /* not-ECT */
 +                if ((ip->ip_tos & IPTOS_ECN_MASK) == IPTOS_ECN_ECT1)
@@ -35,10 +61,11 @@ Index: netpfil/ipfw/ip_dn_io.c
 +        
 +                /*
 +                 * ecn-capable but not marked,
-+                 * mark CE and update checksum
++                 * mark SCE and update checksum
 +                 */
 +                old = *(uint16_t *)ip;
-+                ip->ip_tos |= IPTOS_ECN_ECT1;                            
++		ip->ip_tos &= ~IPTOS_ECN_CE;
++                ip->ip_tos |= IPTOS_ECN_ECT1;
 +                ip->ip_sum = cksum_adjust(ip->ip_sum, old, *(uint16_t *)ip);
 +                return (1);
 +        }
@@ -76,16 +103,15 @@ Index: netpfil/ipfw/ip_dn_io.c
  ecn_mark(struct mbuf* m)
  {
  	struct ip *ip;
-Index: netpfil/ipfw/dn_sched_fq_codel_helper.h
+Index: sys/netpfil/ipfw/ip_dn_private.h
 ===================================================================
---- netpfil/ipfw/dn_sched_fq_codel_helper.h	(revision 344445)
-+++ netpfil/ipfw/dn_sched_fq_codel_helper.h	(working copy)
-@@ -127,7 +127,7 @@
- 		while (now >= cst->drop_next_time && cst->dropping) {
+--- sys/netpfil/ipfw/ip_dn_private.h	(revision 344445)
++++ sys/netpfil/ipfw/ip_dn_private.h	(working copy)
+@@ -438,6 +438,7 @@
  
- 			/* mark the packet */
--			if (cprms->flags & CODEL_ECN_ENABLED && ecn_mark(m)) {
-+			if (cprms->flags & CODEL_ECN_ENABLED && sce_mark(m)) {
- 				cst->count++;
- 				/* schedule the next mark. */
- 				cst->drop_next_time = control_law(cst, cprms, cst->drop_next_time);
+ #ifdef NEW_AQM
+ int ecn_mark(struct mbuf* m);
++int sce_mark(struct mbuf* m);
+ 
+ /* moved from ip_dn_io.c to here to be available for AQMs modules*/
+ static inline void
